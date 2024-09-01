@@ -1,9 +1,9 @@
 import openai
 import json
 from pydantic import BaseModel
-from config import OPENAI_API_KEY
+from config import config
 
-openai.api_key = OPENAI_API_KEY
+openai.api_key = config.OPENAI_API_KEY
 
 class ReviewResponse(BaseModel):
     pull_request_description: str
