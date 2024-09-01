@@ -1,9 +1,12 @@
 import json
 import requests
+import openai
 
 # TODO: move to env var
 GITHUB_ACCESS_TOKEN = "REMOVED_GITHUB_TOKEN"
 OPENAI_API_KEY = "REMOVED_OPENAI_API_KEY"
+
+openai.api_key = OPENAI_API_KEY
 
 def review_code_with_openai(changeset, pr_title, pr_description):
     """
@@ -17,12 +20,6 @@ def review_code_with_openai(changeset, pr_title, pr_description):
     Returns:
         str: The code review feedback from OpenAI.
     """
-    openai_url = "https://api.openai.com/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
     prompt = (
         "You are an experienced software engineer familiar with leading tech practices in security, observability, reliability, object-oriented design, functional programming, and performance.\n"
         "Review the following git diff, focusing only on the new code added. "
@@ -37,32 +34,22 @@ def review_code_with_openai(changeset, pr_title, pr_description):
     )
     
     
-    data = {
-        "model": "o1-mini",  
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        "max_completion_tokens": 2000
-    }
-    print(json.dumps(data))
     try:
-        response = requests.post(openai_url, headers=headers, data=json.dumps(data))
-        response.raise_for_status()
-        result = response.json()
-        print(result)
-        review = result.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+        response = openai.ChatCompletion.create(
+            model="o1-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            max_tokens=2000
+        )
+        review = response.choices[0].message.content.strip()
         print("Code review from OpenAI:\n", review)
         return review
-    except requests.exceptions.RequestException as e:
+    except openai.error.OpenAIError as e:
         print(f"Failed to get a response from OpenAI: {e}")
-        print("Response content:", response.text)
-        return None
-    except KeyError as e:
-        print(f"Unexpected response format: {e}")
-        print("Response content:", response.text)
         return None
         
 def verify_repo_access(repository):
