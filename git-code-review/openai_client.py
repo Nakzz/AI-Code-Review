@@ -22,7 +22,7 @@ class ReviewResponse(BaseModel):
     code_suggestions: Optional[List[CodeSuggestion]] = None
     refusal: Optional[str] = None 
 
-def get_pr_summary(changeset: str) -> Optional[str]:
+def get_pr_summary(changeset: str) -> Optional[PullRquestDescriptionResponse]:
     prompt = (
         "Analyze the following git diff and provide a concise summary of the Pull Request.\n\n"
         f"### Code Changes Begin:\n{changeset}\n### Code Changes Ends\n\n"
@@ -44,15 +44,13 @@ def get_pr_summary(changeset: str) -> Optional[str]:
         if response.choices:
             summary_json = response.choices[0].message.parsed
             review_data = PullRquestDescriptionResponse.model_validate(summary_json)
-            # summary = response.choices[0].message.content.strip()
-            # print("PR Summary from OpenAI:\n", summary)
             return review_data
         return None
     except openai.OpenAIError as e:
         print(f"Failed to get PR summary from OpenAI: {e}")
         return None
 
-def get_review(changeset: str, pr_title: str, pr_description: str) -> Optional[ReviewResponse]:
+def get_feedback(changeset: str, pr_title: str, pr_description: str) -> Optional[str]:
     prompt = (
         "You are an experienced software engineer familiar with leading tech practices in security, observability, reliability, object-oriented design, functional programming, and performance.\n"
         "Review the following git diff, focusing only on the new code added. "
@@ -91,8 +89,7 @@ def get_review(changeset: str, pr_title: str, pr_description: str) -> Optional[R
         print(f"Failed to get a response from OpenAI: {e}")
         return None
 
-
-def get_detailed_review(changeset: str, pr_title: str, pr_description: str) -> Optional[ReviewResponse]:
+def get_detailed_review(changeset: str, pr_title: str, pr_description: str) -> Optional[str]:
     prompt = (
         "You are an experienced software engineer familiar with leading tech practices in security, observability, reliability, object-oriented design, functional programming, and performance.\n"
         "Review the following git diff, focusing only on the new code added. "
@@ -132,7 +129,7 @@ def get_detailed_review(changeset: str, pr_title: str, pr_description: str) -> O
         print(f"Failed to get a response from OpenAI: {e}")
         return None
 
-def suggest_code_changes(feedback: str, changeset: str) -> Optional[List[str]]:
+def suggest_code_changes(feedback: str, changeset: str) -> Optional[CodeSuggestions]:
     prompt = (
         "You are an experienced software engineer familiar with leading tech practices in security, observability, reliability, object-oriented design, functional programming, and performance.\n"
         f"You are provided feedback on the following output of git diff:\n\n{feedback}\n\n"
@@ -182,9 +179,7 @@ def review_code_with_openai(changeset: str, pr_title: str, pr_description: str) 
         ReviewResponse: A structured response containing the PR summary, pull request description, feedback, and code suggestions.
     """
     pr_summary = get_pr_summary(changeset)
-    review = get_review(changeset, pr_title, pr_summary)
-    if review is None: 
-        return None
+    feedback = get_feedback(changeset, pr_title, pr_summary)
     
     detailed_review = get_detailed_review(changeset, pr_title, pr_summary)
     # review.pr_summary = pr_summary
@@ -192,4 +187,4 @@ def review_code_with_openai(changeset: str, pr_title: str, pr_description: str) 
     if detailed_review:
         suggestions = suggest_code_changes(detailed_review, changeset)
         
-    return review
+    return ReviewResponse(feedback=feedback, code_suggestions=suggestions)
