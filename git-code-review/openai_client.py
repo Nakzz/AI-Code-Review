@@ -6,11 +6,20 @@ from config import config
 
 client = openai.Client(api_key=config.OPENAI_API_KEY)
 
-class ReviewResponse(BaseModel):
-    pr_summary: Optional[str] = None
+class PullRquestDescriptionResponse(BaseModel):
     pull_request_description: str
+    
+class CodeSuggestion(BaseModel):
+    filename: str
+    old_code: str
+    new_code: str
+    
+class CodeSuggestions(BaseModel):
+    code_suggestions: Optional[List[CodeSuggestion]] = None
+    
+class ReviewResponse(BaseModel):
     feedback: str
-    code_suggestions: Optional[List[str]] = None
+    code_suggestions: Optional[List[CodeSuggestion]] = None
     refusal: Optional[str] = None 
 
 def get_pr_summary(changeset: str) -> Optional[str]:
@@ -29,12 +38,15 @@ def get_pr_summary(changeset: str) -> Optional[str]:
                     "content": prompt
                 }
             ],
-            max_completion_tokens=500
+            max_completion_tokens=500,
+            response_format=PullRquestDescriptionResponse
         )
         if response.choices:
-            summary = response.choices[0].message.content.strip()
-            print("PR Summary from OpenAI:\n", summary)
-            return summary
+            summary_json = response.choices[0].message.parsed
+            review_data = PullRquestDescriptionResponse.model_validate(summary_json)
+            # summary = response.choices[0].message.content.strip()
+            # print("PR Summary from OpenAI:\n", summary)
+            return review_data
         return None
     except openai.OpenAIError as e:
         print(f"Failed to get PR summary from OpenAI: {e}")
@@ -44,33 +56,72 @@ def get_review(changeset: str, pr_title: str, pr_description: str) -> Optional[R
     prompt = (
         "You are an experienced software engineer familiar with leading tech practices in security, observability, reliability, object-oriented design, functional programming, and performance.\n"
         "Review the following git diff, focusing only on the new code added. "
-        "Provide concise feedback on logic errors or general mistakes to promote better code quality, consistent variable naming, strongly typed (when applicable), and RESTful design (when applicable). Keep those explanations brief, assuming the reader prefers short text and optimal clarity. "
+        "Provide concise feedback on logic errors or general mistakes to promote better code quality, consistent variable naming, strongly typed (when applicable), and RESTful design (when applicable)."
+        "Keep those explanations brief, assuming the reader prefers short text and optimal clarity, a list format in markdown."
         "Offer code changes if needed but avoid commenting on acceptable code. "
-        "If there are no improvements to suggest, provide an encouraging message to the developer. Creatively be their coding hypeman using modern-day references and jokes!\n"
-        "If the Pull Request Description is missing or unknown, summarize the changes by reviewing the code and include a 'Pull Request Description' section in your review.\n"
-        "Avoid commenting about the following: Using a logging library.\n\n\n"
-        f"Pull Request Title: {pr_title}\n\n"
-        f"Pull Request Description:\n{pr_description}\n\n"
+        "Avoid commenting about the following: Using a logging library, Deployment Configaration changes\n\n\n"
+        f"Pull Request Description:\n{pr_description}\n"
         f"### Code Changes Begin:\n{changeset}\n### Code Changes Ends\n\n"
     )
     
     try:
-        response = client.beta.chat.completions.parse(
-            model="gpt-4o-2024-08-06",
+        response = client.chat.completions.create(
+            model="o1-mini",
             messages=[
                 {
                     "role": "user",
                     "content": prompt
                 }
             ],
-            max_completion_tokens=2000,
-            response_format=ReviewResponse
+            max_completion_tokens=2500,
+            # response_format={ "type": "json_object" }
         )
         try:
-            review_json = response.choices[0].message.parsed
-            review_data = ReviewResponse.model_validate(review_json)
-            print("Structured code review from OpenAI:\n", review_data)
+            review_data = response.choices[0].message.content
+            # review_data = ReviewResponse.model_validate(review_json)
+            print("Simple Review from OpenAI:\n", review_data)
             return review_data
+        except json.JSONDecodeError as e:
+            print(f"Failed to parse OpenAI response as JSON: {e}")
+            return None
+        except Exception as e:
+            print(f"Unexpected error during parsing: {e}")
+            return None
+    except openai.OpenAIError as e:
+        print(f"Failed to get a response from OpenAI: {e}")
+        return None
+
+
+def get_detailed_review(changeset: str, pr_title: str, pr_description: str) -> Optional[ReviewResponse]:
+    prompt = (
+        "You are an experienced software engineer familiar with leading tech practices in security, observability, reliability, object-oriented design, functional programming, and performance.\n"
+        "Review the following git diff, focusing only on the new code added. "
+        "Provide detailed feedback on logic errors or general mistakes to promote better code quality, consistent variable naming, strongly typed (when applicable), and RESTful design (when applicable)."
+        "Offer as many pragmatic code changes as needed but avoid commenting on acceptable code. "
+        "Avoid reccomending changes about the following: Using a logging library.\n\n\n"
+        f"Pull Request Description:\n{pr_description}\n"
+        f"### Code Changes Begin:\n{changeset}\n### Code Changes Ends\n\n"
+        "Think about the code responding, and your final response must strictly adhere to the format as such:"
+        "{\"detailed_feedback\" : str}"
+        
+    )
+    # \"code_suggestions\":[{\"filename\" : str , \"new_code\": str,\"old_code\": str}]
+    try:
+        response = client.chat.completions.create(
+            model="o1-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            max_completion_tokens=6000,
+        )
+        try:
+            detailed_review_data = response.choices[0].message.content
+            # review_data = ReviewResponse.model_validate(review_json)
+            print("Detailed code review from OpenAI:\n", detailed_review_data)
+            return detailed_review_data
         except json.JSONDecodeError as e:
             print(f"Failed to parse OpenAI response as JSON: {e}")
             return None
@@ -83,10 +134,11 @@ def get_review(changeset: str, pr_title: str, pr_description: str) -> Optional[R
 
 def suggest_code_changes(feedback: str, changeset: str) -> Optional[List[str]]:
     prompt = (
-        f"You have provided feedback on the following code changes:\n\n{feedback}\n\n"
-        "Based on this feedback, suggest code changes to address the issues mentioned. "
-        "Provide each suggestion as a separate, concise and actionable item. "
-        "If multiple changes are recommended, list them sequentially."
+        "You are an experienced software engineer familiar with leading tech practices in security, observability, reliability, object-oriented design, functional programming, and performance.\n"
+        f"You are provided feedback on the following output of git diff:\n\n{feedback}\n\n"
+        "Based on this feedback, suggest code changes as new_code to address the issues mentioned. the old_code should be the code you suggest changing, we will be doing a regex search to make sure it matches exactly as just the code, can be replaced via the new_code.\n "
+        f"Code Changes:\n{changeset}\n\n"
+
     )
     
     try:
@@ -98,13 +150,14 @@ def suggest_code_changes(feedback: str, changeset: str) -> Optional[List[str]]:
                     "content": prompt
                 }
             ],
-            max_completion_tokens=1500
+            max_completion_tokens=4000,
+            response_format=CodeSuggestions
         )
         suggestions = []
         if response.choices:
-            suggestions_text = response.choices[0].message.content.strip()
-            suggestions = suggestions_text.split('\n')  # Assuming suggestions are line-separated
-            suggestions = [s.strip('- ').strip() for s in suggestions if s.strip()]
+            suggestions_text = response.choices[0].message.parsed
+            suggestions = CodeSuggestions.model_validate(suggestions_text)
+            # suggestions = [s.strip('- ').strip() for s in suggestions if s.strip()]
             print("Code suggestions from OpenAI:\n", suggestions)
         return suggestions
     except openai.OpenAIError as e:
@@ -129,13 +182,14 @@ def review_code_with_openai(changeset: str, pr_title: str, pr_description: str) 
         ReviewResponse: A structured response containing the PR summary, pull request description, feedback, and code suggestions.
     """
     pr_summary = get_pr_summary(changeset)
-    review = get_review(changeset, pr_title, pr_description)
-    if review is None:
+    review = get_review(changeset, pr_title, pr_summary)
+    if review is None: 
         return None
     
-    review.pr_summary = pr_summary
+    detailed_review = get_detailed_review(changeset, pr_title, pr_summary)
+    # review.pr_summary = pr_summary
     
-    if review.feedback:
-        suggestions = suggest_code_changes(review.feedback, changeset)
-        review.code_suggestions = suggestions
+    if detailed_review:
+        suggestions = suggest_code_changes(detailed_review, changeset)
+        
     return review
