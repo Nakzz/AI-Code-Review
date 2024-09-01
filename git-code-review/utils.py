@@ -1,4 +1,5 @@
 import json
+import requests
 
 def parse_event_body(event):
     """
