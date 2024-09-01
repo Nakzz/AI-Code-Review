@@ -1,6 +1,6 @@
 import requests
 import json
-from config import GITHUB_ACCESS_TOKEN, TEST_MODE
+from config import config
 from utils import construct_compare_url, construct_comments_url, construct_comment_url
 
 def verify_repo_access(repository):
@@ -13,13 +13,13 @@ def verify_repo_access(repository):
     Returns:
         bool: True if access is verified, False otherwise.
     """
-    if TEST_MODE:
+    if config.TEST_MODE:
         print(f"TEST_MODE: Skipping repository access verification for '{repository}'.")
         return True
     repo_url = f"https://api.github.com/repos/{repository}"
     headers = {
         'Accept': 'application/vnd.github.v3+json',
-        'Authorization': f'token {GITHUB_ACCESS_TOKEN}'
+        'Authorization': f'token {config.GITHUB_ACCESS_TOKEN}'
     }
     try:
         response = requests.get(repo_url, headers=headers)
@@ -41,14 +41,14 @@ def get_bot_comment_id(pr_number, repository_full_name):
     Returns:
         int or None: The comment ID if the bot has commented, otherwise None.
     """
-    if TEST_MODE:
+    if config.TEST_MODE:
         print("TEST_MODE: Skipping retrieval of bot comment ID.")
         return None
 
     comments_url = construct_comments_url(repository_full_name, pr_number)
     headers = {
         'Accept': 'application/vnd.github.v3+json',
-        'Authorization': f'token {GITHUB_ACCESS_TOKEN}'
+        'Authorization': f'token {config.GITHUB_ACCESS_TOKEN}'
     }
 
     try:
