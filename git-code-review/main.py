@@ -38,7 +38,7 @@ def lambda_handler(event, context):
     print(f"Base branch: {base_branch}, Head branch: {head_branch}")
 
     # Verify repository access
-    if not verify_repo_access(repository_full_name):
+    if not TEST_MODE and not verify_repo_access(repository_full_name):
         return {
             'statusCode': 403,
             'body': json.dumps(f"API key does not have access to the repository: {repository_full_name}")
