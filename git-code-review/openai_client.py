@@ -3,7 +3,7 @@ import json
 from pydantic import BaseModel
 from config import config
 
-openai.api_key = config.OPENAI_API_KEY
+client = openai.Client(api_key=config.OPENAI_API_KEY)
 
 class ReviewResponse(BaseModel):
     pull_request_description: str
@@ -41,7 +41,7 @@ def review_code_with_openai(changeset, pr_title, pr_description):
     )
     
     try:
-        response = openai.ChatCompletion.create(
+        response = client.ChatCompletion.create(
             model="gpt-4o-2024-08-06",
             messages=[
                 {
