@@ -8,7 +8,7 @@ openai.api_key = OPENAI_API_KEY
 class ReviewResponse(BaseModel):
     pull_request_description: str
     feedback: str
-    refusal: str = None  # 用于处理拒绝情况
+    refusal: str = None 
 
 def review_code_with_openai(changeset, pr_title, pr_description):
     """
