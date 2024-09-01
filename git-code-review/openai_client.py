@@ -53,8 +53,8 @@ def review_code_with_openai(changeset, pr_title, pr_description):
             max_completion_tokens=2000,
             response_format=ReviewResponse
         )
-        review_json = response.choices[0].message.content.strip()
         try:
+            review_json = response.choices[0].message.parsed
             review_data = ReviewResponse.parse_raw(review_json)
             print("Structured code review from OpenAI:\n", review_data)
             return review_data
