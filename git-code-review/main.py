@@ -22,7 +22,7 @@ def lambda_handler(event, context):
     """
     # Parse the body of the event
     body = parse_event_body(event)
-    
+
     pr_event = body.get('action', 'Unknown')
     pr_details = body.get('pull_request', {})
     pr_title = pr_details.get('title', 'No Title')
@@ -44,7 +44,10 @@ def lambda_handler(event, context):
             'body': json.dumps(f"API key does not have access to the repository: {repository_full_name}")
         }
     
-    comment_id = get_bot_comment_id(pr_number, repository_full_name)
+    if TEST_MODE:
+        comment_id = None
+    else:
+        comment_id = get_bot_comment_id(pr_number, repository_full_name)
 
     if TEST_MODE:
         # Use full_context from context if available
