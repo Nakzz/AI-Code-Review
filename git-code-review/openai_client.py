@@ -33,11 +33,7 @@ def review_code_with_openai(changeset, pr_title, pr_description):
         f"Pull Request Title: {pr_title}\n\n"
         f"Pull Request Description:\n{pr_description}\n\n"
         f"### Code Changes Begin:\n{changeset}\n### Code Changes Ends\n\n"
-        "Please provide the output in the following JSON format:\n"
-        "{\n"
-        '  "pull_request_description": "string",\n'
-        '  "feedback": "string"\n'
-        "}\n"
+
     )
     
     try:
@@ -55,7 +51,7 @@ def review_code_with_openai(changeset, pr_title, pr_description):
         )
         try:
             review_json = response.choices[0].message.parsed
-            review_data = ReviewResponse.model_validate_json(review_json)
+            review_data = ReviewResponse.model_validate(review_json)
             print("Structured code review from OpenAI:\n", review_data)
             return review_data
         except json.JSONDecodeError as e:
@@ -67,3 +63,9 @@ def review_code_with_openai(changeset, pr_title, pr_description):
     except openai.OpenAIError as e:
         print(f"Failed to get a response from OpenAI: {e}")
         return None
+
+#         "Please provide the output in the following JSON format:\n"
+        # "{\n"
+        # '  "pull_request_description": "string",\n'
+        # '  "feedback": "string"\n'
+        # "}\n"
