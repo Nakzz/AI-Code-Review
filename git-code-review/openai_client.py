@@ -7,10 +7,38 @@ from config import config
 client = openai.Client(api_key=config.OPENAI_API_KEY)
 
 class ReviewResponse(BaseModel):
+    pr_summary: Optional[str] = None
     pull_request_description: str
     feedback: str
     code_suggestions: Optional[List[str]] = None
     refusal: Optional[str] = None 
+
+def get_pr_summary(changeset: str) -> Optional[str]:
+    prompt = (
+        "Analyze the following git diff and provide a concise summary of the Pull Request.\n\n"
+        f"### Code Changes Begin:\n{changeset}\n### Code Changes Ends\n\n"
+        "The summary should briefly describe the purpose and scope of the changes."
+    )
+    
+    try:
+        response = client.beta.chat.completions.parse(
+            model="gpt-4o-2024-08-06",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            max_completion_tokens=500
+        )
+        if response.choices:
+            summary = response.choices[0].message.content.strip()
+            print("PR Summary from OpenAI:\n", summary)
+            return summary
+        return None
+    except openai.OpenAIError as e:
+        print(f"Failed to get PR summary from OpenAI: {e}")
+        return None
 
 def get_review(changeset: str, pr_title: str, pr_description: str) -> Optional[ReviewResponse]:
     prompt = (
@@ -87,17 +115,25 @@ def review_code_with_openai(changeset: str, pr_title: str, pr_description: str) 
     """
     Orchestrates the code review and suggestion process by making multiple OpenAI API calls.
 
+    Steps:
+        1. Generate a summary of the Pull Request based on the changeset.
+        2. Review the code changes.
+        3. Suggest code changes based on the review feedback.
+
     Args:
         changeset (str): The git diff of code changes.
         pr_title (str): The title of the pull request.
         pr_description (str): The description/body of the pull request.
 
     Returns:
-        ReviewResponse: A structured response containing the pull request description, feedback, and code suggestions.
+        ReviewResponse: A structured response containing the PR summary, pull request description, feedback, and code suggestions.
     """
+    pr_summary = get_pr_summary(changeset)
     review = get_review(changeset, pr_title, pr_description)
     if review is None:
         return None
+    
+    review.pr_summary = pr_summary
     
     if review.feedback:
         suggestions = suggest_code_changes(review.feedback, changeset)
