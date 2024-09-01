@@ -8,6 +8,9 @@ OPENAI_API_KEY = "REMOVED_OPENAI_API_KEY"
 
 openai.api_key = OPENAI_API_KEY
 
+# Set TEST_MODE to True when testing locally
+TEST_MODE = False
+
 def review_code_with_openai(changeset, pr_title, pr_description):
     """
     Sends the code changeset to OpenAI's API for code review.
@@ -62,6 +65,9 @@ def verify_repo_access(repository):
     Returns:
         bool: True if access is verified, False otherwise.
     """
+    if TEST_MODE:
+        print(f"TEST_MODE: Skipping repository access verification for '{repository}'.")
+        return True
     repo_url = f"https://api.github.com/repos/{repository}"
     headers = {
         'Accept': 'application/vnd.github.v3+json',
@@ -87,6 +93,10 @@ def get_bot_comment_id(pr_number, repository_full_name):
     Returns:
         int or None: The comment ID if the bot has commented, otherwise None.
     """
+    if TEST_MODE:
+        print("TEST_MODE: Skipping retrieval of bot comment ID.")
+        return None
+
     comments_url = f"https://api.github.com/repos/{repository_full_name}/issues/{pr_number}/comments"
     headers = {
         'Accept': 'application/vnd.github.v3+json',
@@ -150,54 +160,62 @@ def lambda_handler(event, context):
     
     comment_id = get_bot_comment_id(pr_number, repository_full_name)
 
-    # Construct the compare URL
-    compare_url = f"https://api.github.com/repos/{repository_full_name}/compare/{base_branch}...{head_branch}"
-    headers = {
-        'Accept': 'application/vnd.github.v3+json',
-        'Authorization': f'token {GITHUB_ACCESS_TOKEN}'
-    }
+    if TEST_MODE:
+        # Use stubbed changeset data
+        full_context = "Stubbed changeset for testing."
+    else:
+        # Construct the compare URL
+        compare_url = f"https://api.github.com/repos/{repository_full_name}/compare/{base_branch}...{head_branch}"
+        headers = {
+            'Accept': 'application/vnd.github.v3+json',
+            'Authorization': f'token {GITHUB_ACCESS_TOKEN}'
+        }
 
-    print(f"Comparing changes between {base_branch} and {head_branch} using: {compare_url}")
+        print(f"Comparing changes between {base_branch} and {head_branch} using: {compare_url}")
 
-    try:
-        response = requests.get(compare_url, headers=headers)
-        response.raise_for_status()
-        comparison = response.json()
-        changeset = []
-        for file in comparison.get('files', []):
-            filename = file.get('filename', 'Unknown file')
-            patch = file.get('patch', '')
-            changeset.append(f"File: {filename}\nChanges:\n{patch}\n")
-        changeset_text = "\n".join(changeset)
+        try:
+            response = requests.get(compare_url, headers=headers)
+            response.raise_for_status()
+            comparison = response.json()
+            changeset = []
+            for file in comparison.get('files', []):
+                filename = file.get('filename', 'Unknown file')
+                patch = file.get('patch', '')
+                changeset.append(f"File: {filename}\nChanges:\n{patch}\n")
+            changeset_text = "\n".join(changeset)
 
-        # Include commit messages for additional context
-        commits = comparison.get('commits', [])
-        commit_messages = "\n".join([commit.get('commit', {}).get('message', '') for commit in commits])
+            # Include commit messages for additional context
+            commits = comparison.get('commits', [])
+            commit_messages = "\n".join([commit.get('commit', {}).get('message', '') for commit in commits])
 
-        # Combine all context
-        full_context = f"{changeset_text}\nCommit Messages:\n{commit_messages}"
+            # Combine all context
+            full_context = f"{changeset_text}\nCommit Messages:\n{commit_messages}"
 
         openai_review = review_code_with_openai(full_context, pr_title, pr_description)
 
         if openai_review:
-            if comment_id:
-                # Update the existing comment
-                comment_url = f"https://api.github.com/repos/{repository_full_name}/issues/comments/{comment_id}"
-                comment_body = {
-                    "body": f"**EXPERIMENTAL: Automated Code Review (Updated)**\n\n{openai_review}"
-                }
-                update_response = requests.patch(comment_url, headers=headers, data=json.dumps(comment_body))
-                update_response.raise_for_status()
-                print(f"Updated comment on PR #{pr_number}")
+            if TEST_MODE:
+                print("TEST_MODE: Skipping posting comments to GitHub.")
+                print(f"Review content:\n{openai_review}")
             else:
-                # Post a new comment
-                comment_url = f"https://api.github.com/repos/{repository_full_name}/issues/{pr_number}/comments"
-                comment_body = {
-                    "body": f"**EXPERIMENTAL: Automated Code Review**\n\n{openai_review}"
-                }
-                comment_response = requests.post(comment_url, headers=headers, data=json.dumps(comment_body))
-                comment_response.raise_for_status()
-                print(f"Comment posted successfully to PR #{pr_number}")
+                if comment_id:
+                    # Update the existing comment
+                    comment_url = f"https://api.github.com/repos/{repository_full_name}/issues/comments/{comment_id}"
+                    comment_body = {
+                        "body": f"**EXPERIMENTAL: Automated Code Review (Updated)**\n\n{openai_review}"
+                    }
+                    update_response = requests.patch(comment_url, headers=headers, data=json.dumps(comment_body))
+                    update_response.raise_for_status()
+                    print(f"Updated comment on PR #{pr_number}")
+                else:
+                    # Post a new comment
+                    comment_url = f"https://api.github.com/repos/{repository_full_name}/issues/{pr_number}/comments"
+                    comment_body = {
+                        "body": f"**EXPERIMENTAL: Automated Code Review**\n\n{openai_review}"
+                    }
+                    comment_response = requests.post(comment_url, headers=headers, data=json.dumps(comment_body))
+                    comment_response.raise_for_status()
+                    print(f"Comment posted successfully to PR #{pr_number}")
         else:
             print("No review was generated by OpenAI.")
     except requests.exceptions.RequestException as e:
