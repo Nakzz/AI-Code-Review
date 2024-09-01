@@ -47,8 +47,13 @@ def lambda_handler(event, context):
     comment_id = get_bot_comment_id(pr_number, repository_full_name)
 
     if TEST_MODE:
-        # Use stubbed changeset data
-        full_context = "Stubbed changeset for testing."
+        # Use full_context from context if available
+        if hasattr(context, 'full_context'):
+            full_context = context.full_context
+            print("Using provided full_context from test_main.py.")
+        else:
+            full_context = "Stubbed changeset for testing."
+            print("Using default stubbed changeset for testing.")
     else:
         try:
             # Get the changeset

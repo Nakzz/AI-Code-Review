@@ -1,6 +1,10 @@
 import json
 from main import lambda_handler, TEST_MODE
 
+class MockContext:
+    def __init__(self, full_context):
+        self.full_context = full_context
+
 if __name__ == '__main__':
     # Enable test mode
     TEST_MODE = True
@@ -26,8 +30,17 @@ if __name__ == '__main__':
             }
         })
     }
-    # Stub context if needed
-    context = None
+    
+    # Define stubbed changeset for testing
+    stubbed_changeset = """
+    File: example.py
+    Changes:
+    + def new_function():
+    +     pass
+    """
 
-    # Call the lambda_handler function
+    # Create a mock context with full_context
+    context = MockContext(full_context=stubbed_changeset)
+
+    # Call the lambda_handler function with the mock context
     lambda_handler(event, context)
