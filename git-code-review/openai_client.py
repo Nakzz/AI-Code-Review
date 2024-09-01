@@ -1,5 +1,6 @@
 import openai
 import json
+from typing import List, Optional
 from pydantic import BaseModel
 from config import config
 
@@ -8,20 +9,10 @@ client = openai.Client(api_key=config.OPENAI_API_KEY)
 class ReviewResponse(BaseModel):
     pull_request_description: str
     feedback: str
-    refusal: str = None 
+    code_suggestions: Optional[List[str]] = None
+    refusal: Optional[str] = None 
 
-def review_code_with_openai(changeset, pr_title, pr_description):
-    """
-    Sends the code changeset to OpenAI's API for code review and returns structured output.
-
-    Args:
-        changeset (str): The git diff of code changes.
-        pr_title (str): The title of the pull request.
-        pr_description (str): The description/body of the pull request.
-
-    Returns:
-        ReviewResponse: A structured response containing the pull request description and feedback.
-    """
+def get_review(changeset: str, pr_title: str, pr_description: str) -> Optional[ReviewResponse]:
     prompt = (
         "You are an experienced software engineer familiar with leading tech practices in security, observability, reliability, object-oriented design, functional programming, and performance.\n"
         "Review the following git diff, focusing only on the new code added. "
@@ -33,12 +24,10 @@ def review_code_with_openai(changeset, pr_title, pr_description):
         f"Pull Request Title: {pr_title}\n\n"
         f"Pull Request Description:\n{pr_description}\n\n"
         f"### Code Changes Begin:\n{changeset}\n### Code Changes Ends\n\n"
-
     )
     
     try:
         response = client.beta.chat.completions.parse(
-            # model="o1-mini", # TODO:(aj) doesn't support json parsing yet... maybe use this model for highlevel, and gpt40 for code changes
             model="gpt-4o-2024-08-06",
             messages=[
                 {
@@ -64,8 +53,53 @@ def review_code_with_openai(changeset, pr_title, pr_description):
         print(f"Failed to get a response from OpenAI: {e}")
         return None
 
-#         "Please provide the output in the following JSON format:\n"
-        # "{\n"
-        # '  "pull_request_description": "string",\n'
-        # '  "feedback": "string"\n'
-        # "}\n"
+def suggest_code_changes(feedback: str, changeset: str) -> Optional[List[str]]:
+    prompt = (
+        f"You have provided feedback on the following code changes:\n\n{feedback}\n\n"
+        "Based on this feedback, suggest code changes to address the issues mentioned. "
+        "Provide each suggestion as a separate, concise and actionable item. "
+        "If multiple changes are recommended, list them sequentially."
+    )
+    
+    try:
+        response = client.beta.chat.completions.parse(
+            model="gpt-4o-2024-08-06",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            max_completion_tokens=1500
+        )
+        suggestions = []
+        if response.choices:
+            suggestions_text = response.choices[0].message.content.strip()
+            suggestions = suggestions_text.split('\n')  # Assuming suggestions are line-separated
+            suggestions = [s.strip('- ').strip() for s in suggestions if s.strip()]
+            print("Code suggestions from OpenAI:\n", suggestions)
+        return suggestions
+    except openai.OpenAIError as e:
+        print(f"Failed to get code suggestions from OpenAI: {e}")
+        return None
+
+def review_code_with_openai(changeset: str, pr_title: str, pr_description: str) -> Optional[ReviewResponse]:
+    """
+    Orchestrates the code review and suggestion process by making multiple OpenAI API calls.
+
+    Args:
+        changeset (str): The git diff of code changes.
+        pr_title (str): The title of the pull request.
+        pr_description (str): The description/body of the pull request.
+
+    Returns:
+        ReviewResponse: A structured response containing the pull request description, feedback, and code suggestions.
+    """
+    review = get_review(changeset, pr_title, pr_description)
+    if review is None:
+        return None
+    
+    if review.feedback:
+        suggestions = suggest_code_changes(review.feedback, changeset)
+        review.code_suggestions = suggestions
+    return review
