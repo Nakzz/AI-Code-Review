@@ -55,7 +55,7 @@ def review_code_with_openai(changeset, pr_title, pr_description):
         )
         try:
             review_json = response.choices[0].message.parsed
-            review_data = ReviewResponse.parse_raw(review_json)
+            review_data = ReviewResponse.model_validate_json(review_json)
             print("Structured code review from OpenAI:\n", review_data)
             return review_data
         except json.JSONDecodeError as e:
