@@ -41,7 +41,8 @@ def review_code_with_openai(changeset, pr_title, pr_description):
     )
     
     try:
-        response = client.ChatCompletion.create(
+        response = client.beta.chat.completions.parse(
+            # model="o1-mini", # TODO:(aj) doesn't support json parsing yet... maybe use this model for highlevel, and gpt40 for code changes
             model="gpt-4o-2024-08-06",
             messages=[
                 {
@@ -49,7 +50,8 @@ def review_code_with_openai(changeset, pr_title, pr_description):
                     "content": prompt
                 }
             ],
-            max_tokens=2000
+            max_completion_tokens=2000,
+            response_format=ReviewResponse
         )
         review_json = response.choices[0].message.content.strip()
         try:
