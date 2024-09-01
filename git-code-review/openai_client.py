@@ -62,6 +62,6 @@ def review_code_with_openai(changeset, pr_title, pr_description):
         except Exception as e:
             print(f"Unexpected error during parsing: {e}")
             return None
-    except openai.error.OpenAIError as e:
+    except openai.OpenAIError as e:
         print(f"Failed to get a response from OpenAI: {e}")
         return None
