@@ -9,8 +9,12 @@ readme = "README.md"
 python = "^3.12"
 openai = "^1.45.0"
 requests = "^2.32.3"
+poetry-plugin-dotenv = "^2.4.0"
 
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.plugins.dotenv]
+location = ".env.dev"
