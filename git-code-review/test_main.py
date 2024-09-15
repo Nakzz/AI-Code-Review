@@ -1,5 +1,5 @@
 import json
-from main import lambda_handler
+from lambda_handler import lambda_handler
 from config import config
 from utils import get_changeset, parse_event_body
 
