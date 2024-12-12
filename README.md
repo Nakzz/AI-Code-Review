@@ -1,4 +1,4 @@
-# Git Code Review
+# AI Code Review
 
 An automated code review tool that integrates with GitHub and utilizes OpenAI's API to provide intelligent feedback on pull requests. It analyzes code changes, generates summaries, and offers suggestions for improvements based on software engineering best practices.
 
@@ -39,6 +39,7 @@ Coincidentaly OpenAI's `o1-preview` and `o1-mini` models just released this week
 - **Suggested Code Changes:** Implement functionality to suggest code changes directly from the model's feedback. [Learn More](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/incorporating-feedback-in-your-pull-request#applying-a-suggested-change)
 - **Customization:** Allow users to configure feedback levels and analysis depth, or simply chat back from Github PR.
 - **Model Support:** Expand to support other models (Claude, Llama). 
+- **CI/CD** : Would be cool to see PR to this repo get reviewed by the project itself, with new feats.
 
 
 ## Installation

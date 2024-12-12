@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "git-code-review"
+name = "ai-code-review"
 version = "0.1.0"
 description = ""
 authors = ["AJ <naqibprio10@gmail.com>"]
